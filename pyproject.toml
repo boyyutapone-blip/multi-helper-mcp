@@ -1,0 +1,27 @@
+[project]
+name = "multi-helper-mcp"
+version = "0.2.0"
+description = "MCP server: 让纯文本主控模型通过工具调用获得视觉理解和世界知识能力"
+authors = [{name = "Rick"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["mcp", "multi-model", "vision", "knowledge", "glm", "coding-plan"]
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "openai>=1.50.0",
+    "pillow>=12.2.0",
+]
+
+[project.scripts]
+multi-helper-mcp = "server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.uv]
+# uv 会自动创建隔离环境，无需手动 venv
