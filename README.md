@@ -44,7 +44,7 @@
 
 ### 为什么联网搜索用博查而不是火山云？
 
-实测结论：火山云 coding plan 套餐**不含任何搜索/browsing 模型**——`doubao-search`、`bot-res-search`、`doubao-pro-32k-browsing` 全部返回 `UnsupportedModel: does not support the coding plan feature`，`enable_search=True` 参数也无效（模型只是把它当指令回吐）。因此联网搜索走第三方博查 API（当前完全免费，独立于云厂商）。
+实测结论：火山云 coding plan 套餐**不含任何搜索/browsing 模型**——`doubao-search`、`bot-res-search`、`doubao-pro-32k-browsing` 全部返回 `UnsupportedModel: does not support the coding plan feature`，`enable_search=True` 参数也无效（模型只是把它当指令回吐）。因此联网搜索走第三方博查 API（当前完全免费，独立于云厂商）。（火山云的agent plan好像是有提供联网搜索的，大家有其他方法可以试一下）
 
 ## 前置要求
 
