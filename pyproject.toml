@@ -1,16 +1,18 @@
 [project]
 name = "multi-helper-mcp"
-version = "0.2.0"
-description = "MCP server: 让纯文本主控模型通过工具调用获得视觉理解和世界知识能力"
+version = "0.3.0"
+description = "MCP server: 让纯文本主控模型通过工具调用获得视觉理解、世界知识、联网搜索、网页读取和开源仓库访问能力"
 authors = [{name = "Rick"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.11"
-keywords = ["mcp", "multi-model", "vision", "knowledge", "glm", "coding-plan"]
+keywords = ["mcp", "multi-model", "vision", "knowledge", "glm", "coding-plan", "web-search", "web-reader", "github"]
 dependencies = [
     "mcp[cli]>=1.0.0",
     "openai>=1.50.0",
     "pillow>=12.2.0",
+    "httpx>=0.27.0",          # web_reader 抓取网页
+    "selectolax>=0.3.21",     # web_reader 解析 HTML 提取正文
 ]
 
 [project.scripts]

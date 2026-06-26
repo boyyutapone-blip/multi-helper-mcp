@@ -1,12 +1,12 @@
 # Multi-Helper MCP
 
-让纯文本主控模型（如 GLM-5.2）通过 MCP 工具调用获得**视觉理解**和**世界知识**两项外援能力。
+让纯文本主控模型（如 GLM-5.2）通过 MCP 工具调用获得**视觉理解、世界知识、联网搜索、网页读取、开源仓库访问**五项外援能力。
 
 ## 为什么需要它
 
 很多强大的编程模型（GLM-5.2、DeepSeek-Coder 等）是**纯文本模型**，没有视觉能力。一旦图片内容进入对话上下文，会导致会话永久损坏（`Model only support text input` 报错）。
 
-这个 MCP server 让纯文本主控模型通过"工具调用"的方式间接使用多模态模型：**图片和知识查询作为工具参数传给 MCP server，server 调用专门模型处理，返回纯文本结果给主控**。主控始终只处理文本，安全且稳定。
+这个 MCP server 让纯文本主控模型通过"工具调用"的方式间接使用多模态模型和外部能力：**图片、知识查询、搜索、抓网页、读仓库都作为工具参数传给 MCP server，server 调用专门模型或本地实现处理，返回纯文本结果给主控**。主控始终只处理文本，安全且稳定。
 
 ## 架构
 
@@ -16,25 +16,35 @@
 │  遇到图片 → vision_describe                         │
 │  遇到客观事实 → deepseek_knowledge                  │
 │  遇到复杂分析 → deepseek_knowledge_deep             │
+│  遇到最新信息 → web_search                          │
+│  遇到读网页 → web_reader                            │
+│  遇到读开源仓库 → github_repo                       │
 └────────────────────┬────────────────────────────────┘
                      ↓ MCP (stdio)
-        ┌────────────┼────────────┐
-        ▼            ▼            ▼
-   视觉模型       知识模型(快)    知识模型(深)
-   (看图)         (日常事实)      (复杂分析)
+   ┌────┬────┬────┬────┬────┐
+   ▼    ▼    ▼    ▼    ▼
+  视觉  知识  知识  博查  本地
+  模型  (快)  (深)  搜索  httpx
 ```
 
-核心思想：**主控模型始终是主大脑，外援模型只是"工具"**。主控人格稳定、上下文连续，外援可插拔。
+核心思想：**主控模型始终是主大脑，外援只是"工具"**。主控人格稳定、上下文连续，外援可插拔。
 
 ## 提供的工具
 
-| 工具 | 作用 | 背后模型（可配） |
-|------|------|-----------------|
+| 工具 | 作用 | 背后实现 |
+|------|------|---------|
 | `vision_describe(image_path, question)` | 分析本地图片，返回文字描述 | 视觉模型（如 doubao-seed-2.0-lite） |
 | `deepseek_knowledge(query)` | 快速查询客观事实（人名、时间、定义） | 快速知识模型（如 deepseek-v4-flash） |
 | `deepseek_knowledge_deep(query)` | 深度推理复杂知识问题 | 深度知识模型（如 deepseek-v4-pro） |
+| `web_search(query, count, freshness)` | 联网搜索实时信息，支持时间范围筛选 | 博查 Bocha API（独立于云厂商，当前免费） |
+| `web_reader(url, max_chars)` | 抓取网页正文，保真不提炼 | 本地 httpx + selectolax |
+| `github_repo(action, repo, ...)` | 读取 GitHub 仓库结构与文件 | GitHub REST API（公开仓库免 token） |
 
 `vision_describe` 支持 `image_path="latest"` 自动定位最新截图，`"latest:2"` 取第二新的，无需手动复制文件路径。
+
+### 为什么联网搜索用博查而不是火山云？
+
+实测结论：火山云 coding plan 套餐**不含任何搜索/browsing 模型**——`doubao-search`、`bot-res-search`、`doubao-pro-32k-browsing` 全部返回 `UnsupportedModel: does not support the coding plan feature`，`enable_search=True` 参数也无效（模型只是把它当指令回吐）。因此联网搜索走第三方博查 API（当前完全免费，独立于云厂商）。
 
 ## 前置要求
 
@@ -189,6 +199,32 @@ env:
 | `MAX_OUTPUT_TOKENS` | 视觉模型单次返回最大 token | `800` |
 | `SCREENSHOT_DIR` | 截图目录（`latest` 关键字扫描范围） | 系统默认（`~/Pictures/Screenshots`） |
 
+### 联网搜索（博查 Bocha）
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `BOCHA_API_KEY` | 博查 API Key，留空则 `web_search` 返回未配置提示 | 空（未配置） |
+| `BOCHA_API_URL` | 博查搜索接口地址 | `https://api.bochaai.com/v1/web-search` |
+
+**获取博查 API Key**：访问 https://open.bochaai.com 注册，当前完全免费（无需信用卡），Individual 档含 web searches 和长文摘要。独立于云厂商。
+
+### 网页读取（web_reader）
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `WEB_READER_TIMEOUT` | 抓取网页超时（秒） | `20` |
+| `WEB_READER_MAX_CHARS` | 返回正文最大字符数，超出截断 | `8000` |
+| `WEB_READER_USER_AGENT` | 请求 UA，部分站点拒无 UA 请求 | 内置合理 UA |
+
+### GitHub 仓库读取（github_repo）
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `GITHUB_TOKEN` | GitHub Personal Access Token，留空走匿名模式 | 空（匿名，60 次/小时） |
+
+**匿名模式**：公开仓库免 token，限流 60 次/小时/IP，偶尔查够用。
+**配 Token**：申请 https://github.com/settings/tokens（classic token 勾 `public_repo`），提到 5000 次/小时，且支持私有仓库。
+
 ## 使用方式
 
 接入客户端后，正常和主控模型对话即可。主控模型会自动判断何时调用工具：
@@ -196,6 +232,9 @@ env:
 - **发图片/截图/问看图问题**：主控调用 `vision_describe`，图片在 MCP server 里被视觉模型分析，返回文字给主控
 - **问客观事实**（人名、时间、定义）：主控调用 `deepseek_knowledge`
 - **问复杂分析**（多步推理、对比）：主控调用 `deepseek_knowledge_deep`
+- **问最新信息**（"最近"、"今天"、"搜一下"）：主控调用 `web_search`（需配博查 Key）
+- **读网页正文**（"读一下这个 URL"）：主控调用 `web_reader`，原样抓正文不经过 AI 提炼
+- **读开源仓库**（"看下某项目结构"、"读某仓库某文件"）：主控调用 `github_repo`
 - **写代码/项目相关**：主控自己处理，不绕工具
 
 ### `latest` 关键字用法
